@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 import winsound
 from threading import Thread
+import math
 
 class Alarm:
     def __init__(self, hour, minute, days):
@@ -13,70 +14,70 @@ class Alarm:
         self.is_active = True
         self.thread = None
 
-class AlarmClock:
+class AlarmClockStopwatch:
     def __init__(self, root):
         self.root = root
-        self.root.title("Enhanced Alarm Clock")
-        self.root.geometry("600x500")
+        self.root.title("Alarm Clock & Stopwatch")
+        self.root.geometry("650x650")
         self.root.configure(bg="#f0f0f0")
         
-        # Variables
+        # Alarm Variables
         self.hour = tk.StringVar()
         self.minute = tk.StringVar()
-        self.alarms = []  # List to store all alarms
-        self.days_vars = []  # Checkbutton variables for days
+        self.alarms = []
+        self.days_vars = []
         self.days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
         
-        # Create GUI elements
-        self.create_widgets()
+        # Stopwatch Variables
+        self.stopwatch_running = False
+        self.stopwatch_start_time = 0
+        self.stopwatch_elapsed_time = 0
+        self.lap_times = []
+        
+        # Create Notebook for Tabs
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Create Frames for Different Functions
+        self.alarm_frame = ttk.Frame(self.notebook)
+        self.stopwatch_frame = ttk.Frame(self.notebook)
+        
+        self.notebook.add(self.alarm_frame, text="Alarm")
+        self.notebook.add(self.stopwatch_frame, text="Stopwatch")
+        
+        # Initialize Frames
+        self.create_alarm_widgets()
+        self.create_stopwatch_widgets()
         
         # Update current time
         self.update_time()
 
-    def create_widgets(self):
+    def create_alarm_widgets(self):
         # Current time display
         self.time_label = tk.Label(
-            self.root,
+            self.alarm_frame,
             text="",
             font=("Helvetica", 24),
             bg="#f0f0f0"
         )
         self.time_label.pack(pady=10)
         
-        # Frame for alarm settings
-        settings_frame = tk.Frame(self.root, bg="#f0f0f0")
+        # Alarm Settings Frame
+        settings_frame = tk.Frame(self.alarm_frame, bg="#f0f0f0")
         settings_frame.pack(pady=10)
         
         # Hour input
-        tk.Label(
-            settings_frame,
-            text="Hour (00-23):",
-            bg="#f0f0f0"
-        ).grid(row=0, column=0, padx=5)
-        
-        hour_entry = tk.Entry(
-            settings_frame,
-            textvariable=self.hour,
-            width=5
-        )
+        tk.Label(settings_frame, text="Hour (00-23):", bg="#f0f0f0").grid(row=0, column=0, padx=5)
+        hour_entry = tk.Entry(settings_frame, textvariable=self.hour, width=5)
         hour_entry.grid(row=0, column=1, padx=5)
         
         # Minute input
-        tk.Label(
-            settings_frame,
-            text="Minute (00-59):",
-            bg="#f0f0f0"
-        ).grid(row=0, column=2, padx=5)
-        
-        minute_entry = tk.Entry(
-            settings_frame,
-            textvariable=self.minute,
-            width=5
-        )
+        tk.Label(settings_frame, text="Minute (00-59):", bg="#f0f0f0").grid(row=0, column=2, padx=5)
+        minute_entry = tk.Entry(settings_frame, textvariable=self.minute, width=5)
         minute_entry.grid(row=0, column=3, padx=5)
 
         # Days selection frame
-        days_frame = tk.Frame(self.root, bg="#f0f0f0")
+        days_frame = tk.Frame(self.alarm_frame, bg="#f0f0f0")
         days_frame.pack(pady=5)
         
         # Create checkbuttons for each day
@@ -92,7 +93,7 @@ class AlarmClock:
         
         # Set alarm button
         set_button = tk.Button(
-            self.root,
+            self.alarm_frame,
             text="Set New Alarm",
             command=self.set_alarm,
             bg="#4CAF50",
@@ -101,8 +102,8 @@ class AlarmClock:
         )
         set_button.pack(pady=10)
 
-        # Frame for alarm list
-        list_frame = tk.Frame(self.root)
+        # Alarm List Frame
+        list_frame = tk.Frame(self.alarm_frame)
         list_frame.pack(fill=tk.BOTH, expand=True, padx=20)
 
         # Scrollable treeview for alarms
@@ -134,7 +135,7 @@ class AlarmClock:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         # Buttons frame for list actions
-        actions_frame = tk.Frame(self.root, bg="#f0f0f0")
+        actions_frame = tk.Frame(self.alarm_frame, bg="#f0f0f0")
         actions_frame.pack(pady=10)
 
         # Toggle alarm button
@@ -159,10 +160,102 @@ class AlarmClock:
         )
         delete_button.pack(side=tk.LEFT, padx=5)
 
+    def create_stopwatch_widgets(self):
+        # Stopwatch Display
+        self.stopwatch_label = tk.Label(
+            self.stopwatch_frame, 
+            text="00:00:00.00", 
+            font=("Helvetica", 36)
+        )
+        self.stopwatch_label.pack(pady=20)
+
+        # Stopwatch Buttons Frame
+        btn_frame = tk.Frame(self.stopwatch_frame)
+        btn_frame.pack(pady=10)
+
+        # Start/Stop Button
+        self.start_stop_btn = tk.Button(
+            btn_frame, 
+            text="Start", 
+            command=self.toggle_stopwatch,
+            width=10
+        )
+        self.start_stop_btn.pack(side=tk.LEFT, padx=5)
+
+        # Reset Button
+        reset_btn = tk.Button(
+            btn_frame, 
+            text="Reset", 
+            command=self.reset_stopwatch,
+            width=10
+        )
+        reset_btn.pack(side=tk.LEFT, padx=5)
+
+        # Lap Button
+        lap_btn = tk.Button(
+            btn_frame, 
+            text="Lap", 
+            command=self.record_lap,
+            width=10
+        )
+        lap_btn.pack(side=tk.LEFT, padx=5)
+
+        # Lap Times Listbox
+        self.lap_listbox = tk.Listbox(
+            self.stopwatch_frame, 
+            width=40, 
+            height=10
+        )
+        self.lap_listbox.pack(pady=10)
+
     def update_time(self):
         current_time = time.strftime("%H:%M:%S")
         self.time_label.config(text=current_time)
-        self.root.after(1000, self.update_time)
+        
+        # Update stopwatch if running
+        if self.stopwatch_running:
+            self.update_stopwatch()
+        
+        self.root.after(50, self.update_time)
+
+    def toggle_stopwatch(self):
+        if not self.stopwatch_running:
+            self.stopwatch_start_time = time.time() - self.stopwatch_elapsed_time
+            self.stopwatch_running = True
+            self.start_stop_btn.config(text="Stop")
+        else:
+            self.stopwatch_running = False
+            self.stopwatch_elapsed_time = time.time() - self.stopwatch_start_time
+            self.start_stop_btn.config(text="Start")
+
+    def update_stopwatch(self):
+        elapsed = time.time() - self.stopwatch_start_time
+        minutes, seconds = divmod(int(elapsed), 60)
+        hours, minutes = divmod(minutes, 60)
+        centiseconds = int((elapsed - int(elapsed)) * 100)
+        self.stopwatch_label.config(
+            text=f"{hours:02d}:{minutes:02d}:{seconds:02d}.{centiseconds:02d}"
+        )
+
+    def reset_stopwatch(self):
+        self.stopwatch_running = False
+        self.stopwatch_start_time = 0
+        self.stopwatch_elapsed_time = 0
+        self.start_stop_btn.config(text="Start")
+        self.stopwatch_label.config(text="00:00:00.00")
+        self.lap_times.clear()
+        self.lap_listbox.delete(0, tk.END)
+
+    def record_lap(self):
+        if self.stopwatch_running:
+            lap_time = time.time() - self.stopwatch_start_time
+            minutes, seconds = divmod(int(lap_time), 60)
+            hours, minutes = divmod(minutes, 60)
+            centiseconds = int((lap_time - int(lap_time)) * 100)
+            lap_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}.{centiseconds:02d}"
+            self.lap_times.append(lap_time)
+            self.lap_listbox.insert(tk.END, lap_str)
+            self.lap_listbox.see(tk.END)
 
     def validate_time(self, hour, minute):
         try:
@@ -194,8 +287,7 @@ class AlarmClock:
         self.alarms.append(alarm)
         
         # Start alarm thread
-        alarm.thread = Thread(target=self.start_alarm, args=(alarm,))
-        alarm.thread.daemon = True
+        alarm.thread = Thread(target=self.start_alarm, args=(alarm,), daemon=True)
         alarm.thread.start()
 
         # Add to treeview
@@ -256,7 +348,7 @@ class AlarmClock:
 
 def main():
     root = tk.Tk()
-    app = AlarmClock(root)
+    app = AlarmClockStopwatch(root)
     root.mainloop()
 
 if __name__ == "__main__":

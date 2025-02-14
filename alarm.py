@@ -17,7 +17,7 @@ class Alarm:
 class AlarmClockStopwatch:
     def __init__(self, root):
         self.root = root
-        self.root.title("Alarm Clock & Stopwatch")
+        self.root.title("Alarm Clock, Stopwatch & Timer")
         self.root.geometry("650x650")
         self.root.configure(bg="#f0f0f0")
         
@@ -34,6 +34,14 @@ class AlarmClockStopwatch:
         self.stopwatch_elapsed_time = 0
         self.lap_times = []
         
+        # Timer Variables
+        self.timer_running = False
+        self.timer_paused = False
+        self.timer_remaining = 0
+        self.timer_hours = tk.StringVar(value="00")
+        self.timer_minutes = tk.StringVar(value="00")
+        self.timer_seconds = tk.StringVar(value="00")
+        
         # Create Notebook for Tabs
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -41,17 +49,149 @@ class AlarmClockStopwatch:
         # Create Frames for Different Functions
         self.alarm_frame = ttk.Frame(self.notebook)
         self.stopwatch_frame = ttk.Frame(self.notebook)
+        self.timer_frame = ttk.Frame(self.notebook)
         
         self.notebook.add(self.alarm_frame, text="Alarm")
         self.notebook.add(self.stopwatch_frame, text="Stopwatch")
+        self.notebook.add(self.timer_frame, text="Timer")
         
         # Initialize Frames
         self.create_alarm_widgets()
         self.create_stopwatch_widgets()
+        self.create_timer_widgets()
         
         # Update current time
         self.update_time()
 
+    def create_timer_widgets(self):
+        # Timer display frame
+        timer_display_frame = tk.Frame(self.timer_frame, bg="#f0f0f0")
+        timer_display_frame.pack(pady=20)
+
+        # Timer input fields
+        tk.Label(timer_display_frame, text="Hours:", bg="#f0f0f0").grid(row=0, column=0, padx=5)
+        tk.Entry(timer_display_frame, textvariable=self.timer_hours, width=3).grid(row=0, column=1)
+        
+        tk.Label(timer_display_frame, text="Minutes:", bg="#f0f0f0").grid(row=0, column=2, padx=5)
+        tk.Entry(timer_display_frame, textvariable=self.timer_minutes, width=3).grid(row=0, column=3)
+        
+        tk.Label(timer_display_frame, text="Seconds:", bg="#f0f0f0").grid(row=0, column=4, padx=5)
+        tk.Entry(timer_display_frame, textvariable=self.timer_seconds, width=3).grid(row=0, column=5)
+
+        # Timer display
+        self.timer_label = tk.Label(
+            self.timer_frame,
+            text="00:00:00",
+            font=("Helvetica", 36),
+            bg="#f0f0f0"
+        )
+        self.timer_label.pack(pady=20)
+
+        # Timer buttons frame
+        timer_btn_frame = tk.Frame(self.timer_frame, bg="#f0f0f0")
+        timer_btn_frame.pack(pady=10)
+
+        # Start button
+        self.timer_start_btn = tk.Button(
+            timer_btn_frame,
+            text="Start",
+            command=self.start_timer,
+            width=10,
+            bg="#4CAF50",
+            fg="white"
+        )
+        self.timer_start_btn.pack(side=tk.LEFT, padx=5)
+
+        # Pause button
+        self.timer_pause_btn = tk.Button(
+            timer_btn_frame,
+            text="Pause",
+            command=self.pause_timer,
+            width=10,
+            state=tk.DISABLED,
+            bg="#FFA500",
+            fg="white"
+        )
+        self.timer_pause_btn.pack(side=tk.LEFT, padx=5)
+
+        # Reset button
+        self.timer_reset_btn = tk.Button(
+            timer_btn_frame,
+            text="Reset",
+            command=self.reset_timer,
+            width=10,
+            bg="#f44336",
+            fg="white"
+        )
+        self.timer_reset_btn.pack(side=tk.LEFT, padx=5)
+
+    def start_timer(self):
+        try:
+            hours = int(self.timer_hours.get())
+            minutes = int(self.timer_minutes.get())
+            seconds = int(self.timer_seconds.get())
+            
+            if not (0 <= hours <= 99 and 0 <= minutes <= 59 and 0 <= seconds <= 59):
+                raise ValueError
+                
+            if not self.timer_running:
+                total_seconds = hours * 3600 + minutes * 60 + seconds
+                if total_seconds > 0:
+                    self.timer_remaining = total_seconds
+                    self.timer_running = True
+                    self.timer_paused = False
+                    self.timer_start_btn.config(state=tk.DISABLED)
+                    self.timer_pause_btn.config(state=tk.NORMAL)
+                    Thread(target=self.run_timer, daemon=True).start()
+                
+        except ValueError:
+            messagebox.showerror("Error", "Please enter valid time values!")
+
+    def pause_timer(self):
+        if self.timer_running:
+            if not self.timer_paused:
+                self.timer_paused = True
+                self.timer_pause_btn.config(text="Resume")
+            else:
+                self.timer_paused = False
+                self.timer_pause_btn.config(text="Pause")
+
+    def reset_timer(self):
+        self.timer_running = False
+        self.timer_paused = False
+        self.timer_remaining = 0
+        self.timer_start_btn.config(state=tk.NORMAL)
+        self.timer_pause_btn.config(state=tk.DISABLED, text="Pause")
+        self.timer_label.config(text="00:00:00")
+        self.timer_hours.set("00")
+        self.timer_minutes.set("00")
+        self.timer_seconds.set("00")
+
+    def run_timer(self):
+        while self.timer_running and self.timer_remaining > 0:
+            if not self.timer_paused:
+                hours = self.timer_remaining // 3600
+                minutes = (self.timer_remaining % 3600) // 60
+                seconds = self.timer_remaining % 60
+                
+                self.timer_label.config(
+                    text=f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+                )
+                
+                self.timer_remaining -= 1
+                time.sleep(1)
+                
+                if self.timer_remaining == 0:
+                    self.timer_running = False
+                    self.timer_start_btn.config(state=tk.NORMAL)
+                    self.timer_pause_btn.config(state=tk.DISABLED)
+                    winsound.Beep(1000, 1000)  # Timer completion sound
+                    messagebox.showinfo("Timer", "Time's up!")
+        
+        if not self.timer_remaining:
+            self.reset_timer()
+
+    # [Previous methods remain the same]
     def create_alarm_widgets(self):
         # Current time display
         self.time_label = tk.Label(

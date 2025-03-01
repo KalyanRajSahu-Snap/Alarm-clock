@@ -41,7 +41,7 @@ git clone https://github.com/KalyanRajSahu-Snap/Alarm-clock.git
 
 2. Navigate to the project directory:
 ```bash
-cd py-ala
+cd Alarm-clock
 ```
 
 3. Run the application:
